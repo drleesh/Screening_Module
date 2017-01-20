@@ -1,14 +1,17 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
-# -*- coding: euc-kr -*-
 
 
 import win32com.client
 
 excel = win32com.client.Dispatch("Excel.Application")
-# excel.Visible = True
+excel.Visible = True
 wb = excel.Workbooks.Open('E:/screening.xls')
 ws = wb.ActiveSheet
+wb_Data_PQ = excel.Workbooks.Open('E:/data_PQ.xls')
+ws_Data_PQ = wb_Data_PQ.ActiveSheet
+wb_Data_LQ = excel.Workbooks.Open('E:/data_LQ.xls')
+ws_Data_LQ = wb_Data_LQ.ActiveSheet
 
 ######################## YoY Screening #########################
 # 매출액 YoY 증가율 0%이상인 종목의 코드와 증가율 출력
@@ -110,12 +113,114 @@ print(RoeScreening_Dic)
 
 
 ######################## PBR Screening #########################
-excel.Visible = True
-wb = excel.Workbooks.Open('E:/data11.xls')
-ws = wb.ActiveSheet
 
+
+# Aggregate_Dic에는 이번분기 모든 종목의 코드와 시가총액을 담음
+Aggregate_Dic = {}
+Aggregate_Screening = {}
+for a in range(2, 2500):
+    Comp_Code_Aggregate = ws_Data_PQ.Cells(a, 1).Value
+    Aggregate= ws_Data_PQ.Cells(a, 8).Value
+    tmp_Dic = {Comp_Code_Aggregate: Aggregate}
+    Aggregate_Dic.update(tmp_Dic)
+# print(Aggregate_Dic)
+
+# Aggregate_Screening에는 YoY, ROE 스크리닝 종목의 코드와 시총을 담음
 for key in RoeScreening_Dic:
-    Comp_Code_Aggregate
+    if key in Aggregate_Dic:
+        Aggregate_Screening = {key: Aggregate_Dic[key] for key in RoeScreening_Dic if key in Aggregate_Dic}
+print(Aggregate_Screening)
 
+PBRScreening_Dic = {}
+Aggregate_Key = []
+# Aggregate_Value = []
+for b in range(2, 2000):
+    Comp_Code = ws.Cells(b,1)
+    Comp_Code = str(Comp_Code)[1:]
+    Capital_PQ = ws.Cells(b, 161).Value
+    Capital_LQ = ws.Cells(b, 162).Value
+    Aggregate_Key = Aggregate_Screening.keys()
+    # Aggregate_Value = Aggregate_Screening.values()
+    Aggregate_Len = len(Aggregate_Key)
+    for c in range(0, Aggregate_Len):
+        if Comp_Code == Aggregate_Key[c]:
+            Aggregate_Value = Aggregate_Screening.get(Aggregate_Key[c])
+            Aggregate_Value = Aggregate_Value.replace(',', '', 10)
+            Aggregate_Value = int(Aggregate_Value)
+            # print(Aggregate_Value)
+            PBR = Aggregate_Value / ((Capital_PQ + Capital_LQ)/2) *0.000001
+            if PBR <= 3:
+                tmp_Dic = {Comp_Code: PBR}
+                PBRScreening_Dic.update(tmp_Dic)
+print(PBRScreening_Dic)
+# PBRScreening_Dic_Len = len(PBRScreening_Dic.keys())
+# print(PBRScreening_Dic_Len)
+# PBRScreening_Dic_Key = PBRScreening_Dic.keys()
+
+######################## 12% Screening #########################
+StockPrice_LQ_Dic = {}
+StockPrice_PQ_Dic = {}
+for d in range(2, 2500):
+    Comp_Code = ws_Data_LQ.Cells(d, 1).Value
+    StockPrice = ws_Data_LQ.Cells(d,3).Value
+    tmp_Dic = {Comp_Code: StockPrice}
+    StockPrice_LQ_Dic.update(tmp_Dic)
+
+for e in range(2, 2500):
+    Comp_Code = ws_Data_PQ.Cells(e, 1).Value
+    StockPrice = ws_Data_PQ.Cells(e,3).Value
+    tmp_Dic = {Comp_Code: StockPrice}
+    StockPrice_PQ_Dic.update(tmp_Dic)
+
+StockPriceScreening_LQ_Dic = {}
+StockPriceScreening_PQ_Dic = {}
+for key in PBRScreening_Dic:
+    if key in StockPrice_LQ_Dic:
+        StockPriceScreening_LQ_Dic = {key: StockPrice_LQ_Dic[key] for key in PBRScreening_Dic if key in StockPrice_LQ_Dic}
+
+for key in PBRScreening_Dic:
+    if key in StockPrice_PQ_Dic:
+        StockPriceScreening_PQ_Dic = {key: StockPrice_PQ_Dic[key] for key in PBRScreening_Dic if key in StockPrice_PQ_Dic}
+
+StockPrice_Value_LQ = StockPriceScreening_LQ_Dic.values()
+StockPrice_Value_PQ = StockPriceScreening_PQ_Dic.values()
+StockPrice_Key = StockPriceScreening_PQ_Dic.keys()
+FinalScreening_Dic ={}
+for f in range(0,len(StockPrice_Value_LQ)):
+    StockPrice_PQ = float(StockPrice_Value_PQ[f].replace(',', '', 10))
+    StockPrice_LQ = float(StockPrice_Value_LQ[f].replace(',', '', 10))
+    # print(StockPrice_PQ, StockPrice_LQ)
+    StockYield = (StockPrice_PQ - StockPrice_LQ) / StockPrice_LQ
+    StockYield = round(StockYield, 4)
+    # print(StockYield)
+    if StockYield >= 0.12:
+        tmp_Dic = {StockPrice_Key[f]: StockYield}
+        FinalScreening_Dic.update(tmp_Dic)
+print(FinalScreening_Dic)
+
+######################## 종목명 출력 #########################
+Comp_Name_Dic = {}
+for g in range(2, 2000):
+    Comp_Code = ws.Cells(g, 1).Value
+    Comp_Code = str(Comp_Code)[1:]
+    Comp_Name = ws.Cells(g, 2).Value
+    # Comp_Name = str(Comp_Name.decode('utf-8'))
+    tmp_Dic = {Comp_Code: Comp_Name}
+    Comp_Name_Dic.update(tmp_Dic)
+# print(Comp_Name_Dic)
+
+BuyRecommended_Dic = {}
+for key in Comp_Name_Dic:
+    if key in FinalScreening_Dic:
+        BuyRecommended_Dic = {key: Comp_Name_Dic[key] for key in Comp_Name_Dic if key in FinalScreening_Dic}
+print(BuyRecommended_Dic)
+
+for h in BuyRecommended_Dic.keys():
+    print(h)
+    print(BuyRecommended_Dic[h])
+
+# BuyRecommended_Name = BuyRecommended_Dic.values()
+# # print(type(BuyRecommended_Name[0]))
+# print(BuyRecommended_Name)
 
 excel.Quit()
